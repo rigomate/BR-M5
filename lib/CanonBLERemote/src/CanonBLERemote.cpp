@@ -273,7 +273,7 @@ bool CanonBLERemote::trigger()
         }
     }
 
-    byte cmdByte = {MODE_IMMEDIATE | BUTTON_RELEASE};          // Binary OR : Concatenate Mode and Button
+    byte cmdByte = MODE_IMMEDIATE | BUTTON_RELEASE;          // Binary OR : Concatenate Mode and Button
     pRemoteCharacteristic_Trigger->writeValue(cmdByte, false); // Set the characteristic's value to be the array of bytes that is actually a string.
     delay(200);
     pRemoteCharacteristic_Trigger->writeValue(MODE_IMMEDIATE, false);
@@ -290,8 +290,8 @@ bool CanonBLERemote::focus()
             return false;
         }
     }
-    byte cmdByte[] = {MODE_IMMEDIATE | BUTTON_FOCUS};                    // Binary OR : Concatenate Mode and Button
-    pRemoteCharacteristic_Trigger->writeValue(cmdByte, sizeof(cmdByte)); // Set the characteristic's value to be the array of bytes that is actually a string.
+    byte cmdByte = MODE_IMMEDIATE | BUTTON_FOCUS;                    // Binary OR : Concatenate Mode and Button
+    pRemoteCharacteristic_Trigger->writeValue(cmdByte, false); // Set the characteristic's value to be the array of bytes that is actually a string.
     delay(200);
     pRemoteCharacteristic_Trigger->writeValue(MODE_IMMEDIATE, sizeof(MODE_IMMEDIATE));
     return true;
