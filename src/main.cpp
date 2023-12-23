@@ -16,7 +16,24 @@ Display M5_display(&M5.Lcd, name_remote);
 
 TimeLapse timelapse(400);
 
-enum RemoteMode {Settings, Shooting}current_mode;
+enum class RemoteMode
+{
+    Settings,
+    SettingsTransition,
+    Shooting,
+    ShootingTransition,
+    TimeLapse,
+    TimeLapseTransition,
+};
+
+RemoteMode current_mode;
+
+double getBatteryLevel(void)
+{
+    AXP192 axp192;
+    auto vbatData = axp192.GetBatVoltage();
+    return 100.0 * ((vbatData - 3.0) / (4.15 - 3.0));
+}
 
 void setup()
 {
@@ -30,7 +47,7 @@ void setup()
     M5_display.set_init_screen(do_pair);
     
 
-    current_mode = Shooting;
+    current_mode = RemoteMode::Shooting;
 
     canon_ble.init();
     
@@ -49,55 +66,77 @@ void setup()
     delay(500);
     Serial.println("Setup Done");
     
+    
+    
+
+    AXP192 axp192;
+    Serial.println("Battery status:");
+    Serial.println(getBatteryLevel());
+
+    Serial.println("Temp status:");
+    Serial.println(axp192.GetTempInAXP192());
+
+    Serial.println("Voltage status:");
+    Serial.println(axp192.GetBatVoltage());
+
+    char batlevelchar[20];
+    snprintf(batlevelchar, sizeof(batlevelchar), "%f", getBatteryLevel());
+    String batlevel{batlevelchar};
+
+    M5_display.set_address(batlevel);
+    M5_display.set_main_menu_screen(-1, "Battery Level");
+
+    delay(2000);
     M5_display.set_address(canon_ble.getPairedAddressString());
-    M5_display.set_main_menu_screen(timelapse.get_interval(), "Ready for single shot");
+    M5_display.set_main_menu_screen(-1, "Single Shooting");
 }
 
+void single_shot()
+{
+    M5_display.set_main_menu_screen(-1, "Cheese");
+    Serial.println("Single shot");
+    if(!canon_ble.trigger()){
+        Serial.println("Trigger Failed");
+    }
+    delay(200);
+    M5_display.set_main_menu_screen(-1, "Single Shooting");
+}
 
-void update_shooting()
+void timelapse_shooting_trigger()
+{
+    if (timelapse.Recording_OnOFF())
+    {
+        Serial.println("Start timelapse");
+        M5_display.set_main_menu_screen(timelapse.get_interval(), "Shooting timelapse");
+    }
+    else
+    {
+        Serial.println("Stop timelapse");
+        M5_display.set_main_menu_screen(timelapse.get_interval(), "Ready for timelapse");
+    }
+
+
+}
+
+void timelapse_shooting_worker()
 {
     // Update timelapse
     if (timelapse.TimeLapse_Trigger())
     {
+        M5_display.set_main_menu_screen(timelapse.get_interval(), "Cheese");
         Serial.println("Trigger timelapse");
         if(!canon_ble.trigger()){
             Serial.println("Trigger Failed");
         }
-    }
-
-    // Remote control
-    if (timelapse.get_interval() == 0) //Single shots
-    {
-        if (M5.BtnA.wasReleased() && !M5.BtnB.wasReleased())
-        {
-            Serial.println("Single shot");
-            if(!canon_ble.trigger()){
-                Serial.println("Trigger Failed");
-            }
-        }
-    }
-    else // Timelapses
-    {
-        // Stop or start timelapse
-        if (M5.BtnA.wasReleased())
-        {
-            if (timelapse.Recording_OnOFF())
-            {
-                Serial.println("Start timelapse");
-                M5_display.set_main_menu_screen(timelapse.get_interval(), "Shooting timelapse");
-            }
-            else
-            {
-                Serial.println("Stop timelapse");
-                M5_display.set_main_menu_screen(timelapse.get_interval(), "Ready for timelapse");
-            }
-        }
+        delay(200);
+        M5_display.set_main_menu_screen(timelapse.get_interval(), "Shooting timelapse");
     }
 }
 
 void update_settings()
 {
-    if (M5.BtnA.wasReleased())
+    static AXP192 axp192;
+    if (axp192.GetBtnPress())
     {
         timelapse.TimeLapse_decDelay();
         M5_display.set_main_menu_screen(timelapse.get_interval(), "Setting interval");
@@ -116,13 +155,38 @@ void loop()
 
     switch (current_mode)
     {
-    case Settings:
-        if (M5.BtnB.wasReleasefor(700))
+    case RemoteMode::ShootingTransition:
+        if(M5.BtnB.wasReleased())
+        {
+            current_mode = RemoteMode::Shooting;
+        }
+    break;
+
+    case RemoteMode::Shooting:
+        if (M5.BtnB.pressedFor(700))
         {
             // M5.BtnB.reset();
-            current_mode = Shooting;
-            String status = (timelapse.get_interval()==0)?"Ready for single shot":"Ready for timelapse";
-            M5_display.set_main_menu_screen(timelapse.get_interval(), status);
+            current_mode = RemoteMode::SettingsTransition;
+            M5_display.set_main_menu_screen(timelapse.get_interval(), "Setting interval");
+        }
+        else if (M5.BtnA.wasPressed())
+        {
+            single_shot();
+        }
+        break;
+
+    case RemoteMode::SettingsTransition:
+        if(M5.BtnB.wasReleased())
+        {
+            current_mode = RemoteMode::Settings;
+        }
+    break;
+    case RemoteMode::Settings:
+        if (M5.BtnB.pressedFor(700))
+        {
+            // M5.BtnB.reset();
+            current_mode = RemoteMode::TimeLapseTransition;
+            M5_display.set_main_menu_screen(timelapse.get_interval(), "Timelapse");
         }
         else
         {
@@ -130,18 +194,27 @@ void loop()
         }
         break;
     
-    case Shooting:
-        if (M5.BtnB.wasReleasefor(700))
+    case RemoteMode::TimeLapseTransition:
+        if(M5.BtnB.wasReleased())
+        {
+            current_mode = RemoteMode::TimeLapse;
+        }
+    break;
+
+
+    case RemoteMode::TimeLapse:
+        if (M5.BtnB.pressedFor(700))
         {
             // M5.BtnB.reset();
-            current_mode = Settings;
-            M5_display.set_main_menu_screen(timelapse.get_interval(), "Setting interval");
+            current_mode = RemoteMode::ShootingTransition;
+            M5_display.set_main_menu_screen(-1, "Single Shooting");
         }
-        else
+        else if (M5.BtnA.wasPressed())
         {
-            update_shooting();
+            timelapse_shooting_trigger();
         }
-        break;
+        timelapse_shooting_worker();
+
 
     default:
         break;

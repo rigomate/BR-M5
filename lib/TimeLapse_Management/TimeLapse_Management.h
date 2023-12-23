@@ -23,12 +23,12 @@ class TimeLapse {
         unsigned int Pic_count = 0;
     private :
         bool timeLapse_ON;
-        long Interval = 0; //ms
+        long Interval = {500}; //ms
 
         void(*_func_trigger)();
         long _time_last_trigger = 0; //ms
-        long _MIN_Interval; //ms
-        const long _delay_increment = 100; //ms
+        long _MIN_Interval{500}; //ms
+        const long _delay_increment{100}; //ms
 };
 
 #endif

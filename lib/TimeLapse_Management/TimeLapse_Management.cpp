@@ -20,25 +20,15 @@ bool TimeLapse::TimeLapse_Trigger()
 
 void TimeLapse::TimeLapse_incDelay()
 {
-    if (Interval < _MIN_Interval)
-    {
-        Interval = _MIN_Interval;
-    }
-    else
-    {
-        Interval += _delay_increment;
-    }
+    Interval += _delay_increment;
 }
 
 void TimeLapse::TimeLapse_decDelay()
 {
-    if (Interval - _delay_increment < _MIN_Interval)
+    Interval -= _delay_increment;
+    if (Interval < _MIN_Interval)
     {
-        Interval = 0;
-    }
-    else
-    {
-        Interval -= _delay_increment;
+        Interval = _MIN_Interval;
     }
 }
 
